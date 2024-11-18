@@ -17,11 +17,13 @@
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
-        var map = L.map('map').setView([-23.550520, -46.633308], 13); // Exemplo: São Paulo, Brasil
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/">CartoDB</a>'
-        }).addTo(map);
+        var map = L.map('map').setView([-23.550520, -46.633308], 13);
+        L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}' + (L.Browser.retina ? '@2x.png' : '.png'), {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/">CartoDB</a>'
+            }
+        ).addTo(map);
+        
         L.marker([ -0.0393, -51.0694 ]).addTo(map)
             .bindPopup('Macapá')
             .openPopup();
