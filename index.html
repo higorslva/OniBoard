@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rotas de Onibus Topper</title>
+    <title>Rotas de Ônibus Topper</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
         #map {
@@ -17,18 +17,51 @@
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
-        var map = L.map('map').setView([-23.550520, -46.633308], 13);
-        L.tileLayer(
-            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}' + (L.Browser.retina ? '@2x.png' : '.png'), {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/">CartoDB</a>'
-            }
-        ).addTo(map);
-        
-        L.marker([ -0.0393, -51.0694 ]).addTo(map)
-            .bindPopup('Macapá')
-            .openPopup();
+        var map = L.map('map').setView([-0.0393, -51.0694], 13);
+        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoiaGlnb3JzbHZhIiwiYSI6ImNtM25jamdhaTFhdGEycXBrendwbW41ODMifQ.cMsTjSH2ZzBU5v3yYsAstg', {
+            attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a>',
+            id: 'mapbox/streets-v11',
+            tileSize: 512,
+            zoomOffset: -1
+        }).addTo(map);
+
+        // Função para buscar a rota específica
+        function fetchBusRoute() {
+            var query = `
+                [out:json];
+                relation(18302047);
+                out body;
+                >;
+                out skel qt;
+            `;
+            var overpassUrl = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+
+            fetch(overpassUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.elements && data.elements.length > 0) { // Verifica se existem elementos
+                        data.elements.forEach(element => {
+                            if (element.type === "relation") {
+                                var coords = element.members.filter(member => member.type === "way").map(way => way.geometry);
+                                coords.forEach(geo => {
+                                    if (geo) { // Verifica se geo não é undefined
+                                        var latlngs = geo.map(point => [point.lat, point.lon]);
+                                        L.polyline(latlngs, { color: 'blue', weight: 5 }).addTo(map)
+                                            .bindPopup('Rota: ' + element.tags.name);
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        console.error('Nenhum elemento encontrado para a relação especificada.');
+                    }
+                })
+                .catch(error => console.error('Erro ao buscar a rota:', error));
+        }
+
+        // Chama a função para buscar e desenhar a rota
+        fetchBusRoute();
     </script>
 
 </body>
 </html>
-
