@@ -118,5 +118,10 @@ function drawLine(coordinates) {
     }
 }
 
+function toggleMenu() {
+    var menuContent = document.getElementById('menuContent');
+    menuContent.style.display = menuContent.style.display === 'none' || menuContent.style.display === '' ? 'block' : 'none';
+}
+
 // Chama a função para buscar e desenhar a rota quando tudo carrega
 fetchBusRoute();
