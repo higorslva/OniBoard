@@ -10,132 +10,63 @@
             height: 100vh; /* Mapa ocupa toda a altura da tela */
             width: 100%;   /* E toda a largura */
         }
+
+        /* Estilo do menu de hambúrguer */
+        #menu {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+        }
+
+        .hamburger {
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #menuContent {
+            display: none;
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 10px;
+            position: absolute;
+            top: 40px;
+            left: 0;
+            width: 150px;
+            z-index: 101;
+        }
+
+        #menuContent ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #menuContent li {
+            margin: 5px 0;
+            cursor: pointer;
+        }
     </style>
     <script src="https://openlayers.org/en/v6.9.0/build/ol.js"></script>
+    <script src="mapFunctions.js" defer></script> <!-- script js -->
 </head>
 <body>
 
-<div id="map"></div> <!-- Div pro mapa! -->
+<div id="map"></div> <!-- Aqui vai o nosso mapa -->
 
-<script>
-    // Criando um mapa com OpenLayers
-    var map = new ol.Map({
-        target: 'map', // Onde vamos colocar o mapa
-        layers: [
-            new ol.layer.Tile({
-                source: new ol.source.OSM() // Usando o OpenStreetMap como fonte de tiles
-            })
-        ],
-        view: new ol.View({
-            center: ol.proj.fromLonLat([-51.0862248, -0.0114405]), // Coordenadas iniciais (onde começa o mapa, no caso, em Macapá)
-            zoom: 14 // Nível de zoom inicial
-        })
-    });
-
-    // Função para buscar a rota específica do ônibus
-    function fetchBusRoute() {
-        var query = `
-            [out:json];
-            relation(18302047); // ID da relação que queremos buscar
-            out body;
-            >;
-            out skel qt;
-        `;
-        var overpassUrl = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
-
-        fetch(overpassUrl) // Fazendo a chamada pra API do Overpass
-            .then(response => response.json()) // Transformando a resposta em JSON
-            .then(data => {
-                if (data.elements && data.elements.length > 0) { // Se achamos alguma coisa
-                    let coordinates = []; // Array pra guardar as coordenadas que vamos pegar
-                    data.elements.forEach(element => { // Pra cada elemento que encontramos...
-                        if (element.type === "relation") { // Se for uma relação...
-                            element.members.forEach(member => { // Vamos ver os membros dela
-                                if (member.type === "way") { // Se for um 'way', vamos buscar as coordenadas
-                                    fetchWayCoordinates(member.ref, coordinates);
-                                }
-                            });
-                        } else if (element.type === "node") { // Se for um nó...
-                            let coord = ol.proj.fromLonLat([element.lon, element.lat]); // Transformando pra coordenadas do OpenLayers
-                            // Adiciona só se não for um ponto isolado
-                            if (coordinates.length === 0 || !coordinates[coordinates.length - 1].equals(coord)) {
-                                coordinates.push(coord); // Adiciona a coordenada ao array
-                            }
-                        }
-                    });
-                } else {
-                    console.error('Nenhum elemento encontrado para a relação especificada.'); // Se não achou nada, avisa no console
-                }
-            })
-            .catch(error => console.error('Erro ao buscar a rota:', error)); // Se der erro, mostra no console também
-    }
-
-    // Função pra buscar as coordenadas do 'way' (caminho)
-    function fetchWayCoordinates(wayId, coordinates) {
-        var query = `
-            [out:json];
-            way(${wayId}); // Aqui pegamos o ID do way que queremos
-            out geom; // Pedindo a geometria dele
-        `;
-        var overpassUrl = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
-    
-        fetch(overpassUrl) // Fazendo a chamada pra API de novo
-            .then(response => response.json())
-            .then(data => {
-                if (data.elements && data.elements.length > 0) {
-                    var way = data.elements[0]; // Pegamos o primeiro elemento que é o nosso 'way'
-                    if (way.geometry) { 
-                        way.geometry.forEach(coord => { 
-                            coordinates.push(ol.proj.fromLonLat([coord.lon, coord.lat])); // Adicionando as coordenadas ao nosso array
-                        });
-                        drawLine(coordinates); // Aqio desenhamos a linha no mapa com essas coordenadas!
-                    } else {
-                        console.error('Geometria não encontrada para o way especificado.'); 
-                    }
-                } else {
-                    console.error('Nenhum dado encontrado para o way especificado.'); 
-                }
-            })
-            .catch(error => console.error('Erro ao buscar coordenadas do way:', error)); 
-    }
-    
-
-    // Função pra desenhar a linha no mapa com as coordenadas que pegamos
-    function drawLine(coordinates) {
-        if (coordinates.length > 0) {
-            let uniqueCoordinates = coordinates.filter((coord, index, self) =>
-                index === 0 || !(coord[0] === self[index - 1][0] && coord[1] === self[index - 1][1])
-            ); // Remove coordenadas duplicadas
-
-            var lineString = new ol.geom.LineString(uniqueCoordinates); // Criando uma linha com as coordenadas únicas
-    
-            var feature = new ol.Feature({
-                geometry: lineString // Criando uma feature com nossa linha
-            });
-    
-            var vectorSource = new ol.source.Vector({
-                features: [feature] // Fonte vetorial pra armazenar nossa linha
-            });
-    
-            var linesLayer = new ol.layer.Vector({
-                source: vectorSource,
-                style: new ol.style.Style({
-                    stroke: new ol.style.Stroke({
-                        color: 'gray', // Cor da linha
-                        width: 6 // Espessura da linha
-                    })
-                })
-            });
-    
-            map.addLayer(linesLayer); // Adiciona a camada de linhas ao mapa
-        } else {
-            console.error('Nenhuma coordenada válida encontrada para desenhar a linha.'); 
-        }
-    }
-
-    // Chama a função pra buscar e desenhar a rota quando tudo carrega
-    fetchBusRoute();
-</script>
+<!-- Menu de Hambúrguer -->
+<div id="menu">
+    <button class="hamburger" onclick="toggleMenu()">☰ Menu</button>
+    <div id="menuContent">
+        <ul>
+            <li onclick="fetchBusRoute()">Buscar Rota</li>
+            <li id="routeName">Nome da Linha: Não disponível</li>
+        </ul>
+    </div>
+</div>
 
 </body>
 </html>
