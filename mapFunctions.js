@@ -11,43 +11,42 @@ var map = new ol.Map({
         zoom: 14 // Nível de zoom inicial
     })
 });
-
+var currentRouteLayer = null;
 // Função para buscar a rota específica
-function fetchBusRoute() {
+function fetchBusRoute(relationId) {
     var query = `
         [out:json];
-        relation(18302047);
+        relation(${relationId});
         out body;
         >;
         out skel qt;
     `;
     var overpassUrl = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
 
-    fetch(overpassUrl) // Fazendo a chamada pra API do Overpass
-        .then(response => response.json()) // Transformando a resposta em JSON
+    fetch(overpassUrl)
+        .then(response => response.json())
         .then(data => {
-            if (data.elements && data.elements.length > 0) { // Se achamos alguma coisa
-                let coordinates = []; // Array pra guardar as coordenadas que vamos pegar
-                data.elements.forEach(element => { // Pra cada elemento que encontramos...
-                    if (element.type === "relation") { // Se for uma relação...
-                        element.members.forEach(member => { // Vamos ver os membros dela
-                            if (member.type === "way") { // Se for um 'way', vamos buscar as coordenadas
+            if (data.elements && data.elements.length > 0) {
+                let coordinates = [];
+                data.elements.forEach(element => {
+                    if (element.type === "relation") {
+                        element.members.forEach(member => {
+                            if (member.type === "way") {
                                 fetchWayCoordinates(member.ref, coordinates);
                             }
                         });
-                    } else if (element.type === "node") { // Se for um nó...
-                        let coord = ol.proj.fromLonLat([element.lon, element.lat]); // Transformando pra coordenadas do OpenLayers
-                        // Adiciona só se não for um ponto isolado
-                        if (coordinates.length === 0 || !coordinates[coordinates.length - 1].equals(coord)) {
-                            coordinates.push(coord); // Adiciona a coordenada ao array
+                    } else if (element.type === "node") {
+                        let coord = ol.proj.fromLonLat([element.lon, element.lat]);
+                        if (coordinates.length === 0 || !areCoordinatesEqual(coordinates[coordinates.length - 1], coord)) {
+                            coordinates.push(coord);
                         }
                     }
                 });
             } else {
-                console.error('Nenhum elemento encontrado para a relação especificada.'); // Se não achou nada, avisa no console
+                console.error('Nenhum elemento encontrado para a relação especificada.');
             }
         })
-        .catch(error => console.error('Erro ao buscar a rota:', error)); // Se der erro, mostra no console também
+        .catch(error => console.error('Erro ao buscar a rota:', error));    
 }
 
 // Função para buscar coordenadas do way
@@ -80,39 +79,37 @@ function fetchWayCoordinates(wayId, coordinates) {
 }
 
 // Função para desenhar a linha no mapa com as coordenadas que pegamos
-// Função para desenhar a linha no mapa com as coordenadas que pegamos
 function drawLine(coordinates) {
     if (coordinates.length > 0) {
-        // Definir uma tolerância para coordenadas próximas
-        const tolerance = 0.00001; // Ajuste conforme necessário
+        let uniqueCoordinates = coordinates.filter((coord, index, self) =>
+            index === 0 || !(coord[0] === self[index - 1][0] && coord[1] === self[index - 1][1])
+        );
 
-        let uniqueCoordinates = coordinates.filter((coord, index, self) => {
-            if (index === 0) return true; // Sempre mantém a primeira coordenada
-            const prevCoord = self[index - 1];
-            return Math.abs(coord[0] - prevCoord[0]) > tolerance || Math.abs(coord[1] - prevCoord[1]) > tolerance;
-        });
-
-        var lineString = new ol.geom.LineString(uniqueCoordinates); // Criando uma linha com as coordenadas únicas
-
+        var lineString = new ol.geom.LineString(uniqueCoordinates);
         var feature = new ol.Feature({
-            geometry: lineString // Criando uma feature com nossa linha
+            geometry: lineString
         });
 
         var vectorSource = new ol.source.Vector({
-            features: [feature] // Fonte vetorial pra armazenar nossa linha
+            features: [feature]
         });
 
-        var linesLayer = new ol.layer.Vector({
+        var newRouteLayer = new ol.layer.Vector({
             source: vectorSource,
             style: new ol.style.Style({
                 stroke: new ol.style.Stroke({
-                    color: 'gray', // Cor da linha
-                    width: 6 // Espessura da linha
+                    color: 'gray',
+                    width: 6
                 })
             })
         });
 
-        map.addLayer(linesLayer); // Adiciona a camada de linhas ao mapa
+        if (currentRouteLayer) {
+            map.removeLayer(currentRouteLayer); // Remove a camada de rota anterior, se existir
+        }
+        
+        map.addLayer(newRouteLayer);
+        currentRouteLayer = newRouteLayer; // Adiciona a nova camada de rota ao mapa
     } else {
         console.error('Nenhuma coordenada válida encontrada para desenhar a linha.');
     }
